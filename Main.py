@@ -32,9 +32,10 @@ class Customer:
         self.name = name
         self.value = float(value) # لحفظ إجمالي المشتريات
 
-    def get_discount(self, total_price):
-        """Standard customers receive 0% discount."""
-        return 0, total_price
+    # مثال لما يجب أن تكون عليه الدالة في ملف Main.py
+    def get_discount(self, amount):
+        discount = amount * 0.1  # أو النسبة التي حددتها
+        return discount  # تأكد من وجود هذه السطر ليعود الرقم للواجهة
 
 class Member(Customer):
     def __init__(self, ID, name, value=0.0):
