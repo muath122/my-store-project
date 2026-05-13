@@ -1,51 +1,40 @@
 import streamlit as st
-import Main  # الربط المباشر بالكود الأساسي
+import Main  # الربط المباشر بملفك الأساسي
 
 st.set_page_config(page_title="نظام المتجر", layout="centered")
 
-# جلب القوائم من الكود الأساسي حقنا
+# جلب البيانات من كودك الأساسي
 products = Main.all_products
 customers = Main.all_customers
 
-st.title("🛍️ واجهة معالجة العمليات الموحدة")
+st.title("🛍️ واجهة نظام المبيعات")
 
-# إدخال البيانات
+# مدخلات الواجهة فقط
 c_name = st.selectbox("اختر العميل", [c.name for c in customers])
 p_name = st.selectbox("اختر المنتج", [p.name for p in products])
 qty = st.number_input("الكمية", min_value=1, step=1)
 
 if st.button("تنفيذ العملية"):
-    # تحديد الكائنات بناءً على الاختيار
     customer = next(c for c in customers if c.name == c_name)
     product = next(p for p in products if p.name == p_name)
     
-    # الحساب الأساسي قبل الخصم
+    # حساب الإجمالي الأساسي (سعر المنتج * الكمية)
     subtotal = product.price * qty
     
-    # القرار يأتي من الكود الأساسي فقط
-    final_price = customer.get_discount(subtotal)
+    # الواجهة تطلب النتيجة من الكود الأساسي (القرار من الـ main)
+    # ملاحظة: إذا ظهر لك خطأ هنا، فالمشكلة أن دالة get_discount تطبع ولا ترجع قيمة
+    result = customer.get_discount(subtotal)
     
-    # معالجة في حال كان الكود الأساسي يرجع None (بسبب الطباعة بدل الـ return)
-    if final_price is None:
-        # هنا الموقع سيطابق منطق التيرمنال تماماً في الحساب
-        if "VIP" in type(customer).__name__:
-            final_price = subtotal * 0.85 # خصم 15% للـ VIP
-        else:
-            final_price = subtotal * 0.95 # خصم 5% للعضو العادي
-
-    # تنفيذ تحديث المخزون من الكود الأساسي
+    # تحديث المخزون من دالتك الأصلية
     product.update_stock(qty)
     
-    # عرض المخرجات كما هي في التيرمنال
     st.divider()
-    st.success("إتمام العملية بنجاح كما في النظام")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(f"**العميل:** {customer.name} ({type(customer).__name__})")
-        st.write(f"**المنتج:** {product.name}")
-    with col2:
-        st.write(f"**الإجمالي:** {subtotal:,.2f} SAR")
-        st.write(f"**الخصم المطبق:** {subtotal - final_price:,.2f} SAR")
-        
-    st.subheader(f"الصافي المطلوب: {final_price:,.2f} SAR")
+    # عرض النتائج المستلمة من الكود
+    if result is not None:
+        st.success(f"تمت العملية لـ {customer.name}")
+        st.write(f"**الصافي المطلوب حسب النظام:** {result} SAR")
+    else:
+        # رسالة تنبيه إذا كانت الدالة في main تطبع فقط ولا ترجع قيمة
+        st.error("نظام الحساب في الـ Main قام بالطباعة فقط ولم يرسل الرقم للواجهة.")
+        st.info(f"الإجمالي قبل الخصم: {subtotal} SAR")
