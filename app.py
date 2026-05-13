@@ -2,96 +2,77 @@ import streamlit as st
 import Main  # استدعاء ملفك الأساسي
 from datetime import datetime
 
-# إعدادات النظام الاحترافية
-st.set_page_config(page_title="نظام الإدارة المالية الموحد", page_icon="🖥️", layout="wide")
+# إعدادات النظام
+st.set_page_config(page_title="نظام الإدارة المالية الموحد", layout="wide")
 
-# تصميم الواجهة (Custom CSS)
+# تصميم الواجهة
 st.markdown("""
     <style>
-    .main { background-color: #f4f7f6; }
-    div.stButton > button:first-child { background-color: #002b5c; color: white; border-radius: 8px; font-weight: bold; }
-    .invoice-card { padding: 25px; border-radius: 12px; border-right: 10px solid #28a745; background-color: #ffffff; box-shadow: 0 10px 20px rgba(0,0,0,0.05); color: #333; }
+    .invoice-card { padding: 20px; border-radius: 10px; border-left: 10px solid #28a745; background-color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); color: #333; }
     </style>
     """, unsafe_allow_html=True)
 
-# جلب البيانات والتأكد من وجودها
-products = getattr(Main, 'all_products', [])
-customers = getattr(Main, 'all_customers', [])
+# جلب البيانات
+products = Main.all_products
+customers = Main.all_customers
 
 with st.sidebar:
-    st.header("⚙️ لوحة التحكم الإدارية")
-    # عرض وتعديل حد الـ VIP (Threshold)
+    st.header("⚙️ الإعدادات الإدارية")
+    # التأكد من جلب سقف الـ VIP الحالي
     current_threshold = getattr(Main, 'vip_threshold', 500.0)
-    new_threshold = st.number_input("تعديل سقف الـ VIP (Threshold)", min_value=0.0, value=float(current_threshold))
-    if st.button("تحديث إعدادات النظام"):
+    new_threshold = st.number_input("تعديل سقف الـ VIP (Threshold)", value=float(current_threshold))
+    if st.button("تحديث السقف"):
         Main.vip_threshold = new_threshold
-        st.success(f"تم تحديث الحد إلى {new_threshold}")
-    st.divider()
-    st.caption(f"نظام إدارة الموارد - {datetime.now().strftime('%Y-%m-%d')}")
+        st.success(f"تم التحديث إلى {new_threshold}")
 
-tab_order, tab_admin = st.tabs(["🛒 معالجة طلب جديد", "📊 سجلات الإدارة"])
+st.title("🛒 مركز معالجة العمليات")
 
-with tab_order:
-    col_in, col_out = st.columns([1, 1], gap="large")
-    with col_in:
-        st.subheader("بيانات العملية التجارية")
-        c_name = st.selectbox("قاعدة بيانات العملاء", [c.name for c in customers], index=None, placeholder="اختر العميل...")
-        p_name = st.selectbox("دليل المنتجات", [p.name for p in products], index=None, placeholder="اختر المنتج...")
-        qty = st.number_input("الكمية المطلوبة", min_value=1, step=1)
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.subheader("بيانات الطلب")
+    c_name = st.selectbox("اختر العميل", [c.name for c in customers])
+    p_name = st.selectbox("اختر المنتج", [p.name for p in products])
+    qty = st.number_input("الكمية", min_value=1, step=1)
+    
+    if st.button("اعتماد العملية"):
+        customer = next(c for c in customers if c.name == c_name)
+        product = next(p for p in products if p.name == p_name)
         
-        if st.button("اعتماد العملية وإصدار الفاتورة"):
-            if c_name and p_name:
-                customer = next(c for c in customers if c.name == c_name)
-                product = next(p for p in products if p.name == p_name)
-                
-                if qty <= product.stock:
-                    # حساب المجموع
-                    subtotal = float(product.price) * qty
-                    
-                    # استدعاء دالة الخصم ومعالجة القيمة المرتجعة (الحل الجذري للـ TypeError)
-                    raw_discount = customer.get_discount(subtotal)
-                    
-                    # التأكد من تحويل القيمة لرقم مهما كان نوعها
-                    try:
-                        discount_val = float(raw_discount) if raw_discount is not None else 0.0
-                    except (TypeError, ValueError):
-                        discount_val = 0.0
+        # --- الجزء الأهم: تحديث حالة العميل قبل الحساب ---
+        subtotal = float(product.price) * qty
+        
+        # استدعاء دالة الخصم من ملفك الأصلي
+        # ملاحظة: تأكد أن دالة get_discount في Main.py ترجع (قيمة الخصم كرقّم)
+        raw_discount = customer.get_discount(subtotal)
+        
+        # معالجة القيمة لضمان عدم حدوث TypeError (كما في الصور السابقة)
+        try:
+            discount_amount = float(raw_discount) if raw_discount is not None else 0.0
+        except:
+            discount_amount = 0.0
+            
+        # إذا كان الخصم المرتجع هو السعر النهائي، نقوم بتعديله
+        if discount_amount > subtotal:
+            final_total = discount_amount
+            applied_disc = subtotal - final_total
+        else:
+            applied_disc = discount_amount
+            final_total = subtotal - applied_disc
 
-                    # منطق احتساب الخصم (إذا كانت الدالة تعيد السعر الجديد أو قيمة الخصم)
-                    if 0 < discount_val < subtotal:
-                        applied_disc = discount_val
-                        final_price = subtotal - applied_disc
-                    elif discount_val >= subtotal:
-                        final_price = discount_val
-                        applied_disc = subtotal - final_price
-                    else:
-                        applied_disc = 0.0
-                        final_price = subtotal
-
-                    product.update_stock(qty)
-                    
-                    st.balloons()
-                    st.markdown(f"""
-                    <div class="invoice-card">
-                        <h3 style="color: #002b5c; margin-top: 0;">🧾 فاتورة ضريبية معتمدة</h3>
-                        <hr>
-                        <p><b>العميل:</b> {customer.name} (<span style="color: #002b5c;">{type(customer).__name__}</span>)</p>
-                        <p><b>المنتج:</b> {product.name} (عدد {qty})</p>
-                        <p style="font-size: 1.1em;">الإجمالي قبل الخصم: <b>{subtotal:,.2f} SAR</b></p>
-                        <p style="color: #d9534f; font-size: 1.1em;">قيمة الخصم المطبق: <b>-{applied_disc:,.2f} SAR</b></p>
-                        <h2 style="color: #28a745;">صافي المبلغ: {final_price:,.2f} SAR</h2>
-                        <p style="font-size: 0.8em; color: gray; margin-bottom: 0;">صدرت آلياً برقم مرجع: {datetime.now().strftime('%H%M%S')}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.error(f"المخزون غير كافٍ (المتاح: {product.stock})")
-
-with tab_admin:
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader("📦 تقرير المخزون")
-        st.table([{"المنتج": p.name, "المخزون": p.stock, "السعر": f"{p.price} SAR"} for p in products])
-    with c2:
-        st.subheader("👥 سجل الفئات")
-        # عرض نوع الكلاس (Member/VIPMember) للتأكد من نظام الـ Threshold
-        st.table([{"الاسم": c.name, "الفئة الحالية": type(c).__name__} for c in customers])
+        # تحديث المخزون
+        product.update_stock(qty)
+        
+        with col2:
+            st.subheader("المخرجات")
+            st.markdown(f"""
+            <div class="invoice-card">
+                <h3>🧾 فاتورة معتمدة</h3>
+                <p><b>العميل:</b> {customer.name} (<span style="color:blue;">{type(customer).__name__}</span>)</p>
+                <p><b>المنتج:</b> {product.name}</p>
+                <hr>
+                <p>الإجمالي قبل الخصم: {subtotal:,.2f} SAR</p>
+                <p style="color:red;">الخصم المستحق: -{applied_disc:,.2f} SAR</p>
+                <h2 style="color:green;">الصافي: {final_total:,.2f} SAR</h2>
+            </div>
+            """, unsafe_allow_html=True)
