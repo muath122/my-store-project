@@ -1,0 +1,3 @@
+p1,Laptop,3000,5
+p2,Mouse,50,20
+p3,Keyboard,150,10

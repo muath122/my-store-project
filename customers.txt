@@ -1,0 +1,3 @@
+v1,Fawaz,VIP,0.0
+c2,Moath,Member
+c3,Abdulaziz,Customer
