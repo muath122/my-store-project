@@ -80,20 +80,28 @@ with tab_order:
                     # حسابات مالية محمية
                     subtotal = float(product.price) * quantity
                     
-                    # استلام الخصم وتحويله لرقم بأمان لتجنب TypeError
+                    # استلام الخصم وتحويله لرقم بأمان
+                    # قمنا بتحديث هذا الجزء لضمان استدعاء دالة الخصم بشكل صحيح أياً كان نوع الكلاس
                     raw_discount = customer.get_discount(subtotal)
                     try:
-                        discount_value = float(raw_discount) if raw_discount is not None else 0.0
+                        discount_amount = float(raw_discount) if raw_discount is not None else 0.0
                     except (TypeError, ValueError):
-                        discount_value = 0.0
+                        discount_amount = 0.0
                     
-                    # منطق الخصم (إذا كانت الدالة ترجع السعر النهائي أو قيمة الخصم)
-                    if discount_value > subtotal:
-                        final_total = discount_value
-                        applied_discount = subtotal - final_total
+                    # منطق معالجة قيمة الخصم:
+                    # إذا كانت الدالة تعيد السعر النهائي بعد الخصم (مثل 2700 بدلاً من 300)
+                    if discount_amount > 0 and discount_amount < subtotal:
+                        # نفترض أن الدالة أعادت "قيمة الخصم"
+                        final_total = subtotal - discount_amount
+                        applied_discount = discount_amount
+                    elif discount_amount >= subtotal:
+                        # نفترض أن الدالة أعادت "السعر النهائي" أو هناك خطأ في الحساب
+                        applied_discount = 0.0
+                        final_total = subtotal
                     else:
-                        applied_discount = discount_value
-                        final_total = subtotal - applied_discount
+                        # لا يوجد خصم
+                        applied_discount = 0.0
+                        final_total = subtotal
                     
                     product.update_stock(quantity)
                     
@@ -105,9 +113,9 @@ with tab_order:
                         <p><b>رقم العملية:</b> {datetime.now().strftime('%Y%H%M%S')}</p>
                         <p><b>العميل المستفيد:</b> {customer.name} (<span style="color: #002b5c;">{type(customer).__name__}</span>)</p>
                         <p><b>البيان:</b> {product.name} (عدد {quantity})</p>
-                        <p style="font-size: 1.1em;">إجمالي القيمة: <b>{subtotal:,.2f} SAR</b></p>
-                        <p style="color: #d9534f; font-size: 1.1em;">الخصم المطبق: <b>-{applied_discount:,.2f} SAR</b></p>
-                        <h2 style="color: #28a745; margin-top: 10px;">صافي المستحق: {final_total:,.2f} SAR</h2>
+                        <p style="font-size: 1.1em;">إجمالي القيمة قبل الخصم: <b>{subtotal:,.2f} SAR</b></p>
+                        <p style="color: #d9534f; font-size: 1.1em;">قيمة الخصم المطبق: <b>-{applied_discount:,.2f} SAR</b></p>
+                        <h2 style="color: #28a745; margin-top: 10px;">صافي المبلغ المستحق: {final_total:,.2f} SAR</h2>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -121,6 +129,6 @@ with tab_admin:
         
     with col_cust:
         st.subheader("👥 سجل بيانات العملاء")
-        # عرض العملاء وأنواعهم (Member/VIP/Customer)
-        customer_list = [{"الاسم": c.name, "فئة العميل": type(c).__name__} for c in customers]
+        # عرض العملاء وفئاتهم بناءً على اسم الكلاس البرمجي في ملفك
+        customer_list = [{"الاسم": c.name, "فئة العميل في النظام": type(c).__name__} for c in customers]
         st.table(customer_list)
