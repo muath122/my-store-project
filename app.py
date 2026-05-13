@@ -1,70 +1,62 @@
 import streamlit as st
-import Main  # الربط المباشر بالكود الأساسي حقنا
+import Main  # الربط الأساسي
 
-st.set_page_config(page_title="نظام إدارة المتجر", layout="wide")
+st.set_page_config(page_title="نظام المتجر", layout="wide")
 
-# جلب البيانات من الكود الأساسي
-products = Main.all_products
-customers = Main.all_customers
-
-# --- الجانب الإداري (Sidebar) ---
+# --- الجانب الإداري (المميزات المطلوبة) ---
 with st.sidebar:
-    st.header("⚙️ لوحة التحكم الإدارية")
+    st.header("⚙️ الإعدادات والمخزون")
     
-    # 1. تحديث سقف الـ VIP
-    st.subheader("تحديد الـ VIP Threshold")
-    new_threshold = st.number_input("الحد الحالي للترقية", value=float(getattr(Main, 'vip_threshold', 500.0)))
-    if st.button("تحديث الحد"):
+    # 1. تحديد الـ VIP Threshold
+    st.subheader("تعديل سقف الـ VIP")
+    new_threshold = st.number_input("الحد الحالي", value=500.0)
+    if st.button("تحديث السقف"):
         Main.vip_threshold = new_threshold
-        st.success(f"تم تحديث الحد إلى {new_threshold}")
+        st.success("تم التحديث")
 
     st.divider()
     
-    # 2. عرض المخزون والعملاء
-    tab1, tab2 = st.tabs(["📦 المخزون", "👥 العملاء"])
-    
-    with tab1:
-        for p in products:
-            st.write(f"**{p.name}:** {p.stock} قطعة")
-            
-    with tab2:
-        for c in customers:
-            st.write(f"**{c.name}** ({type(c).__name__})")
+    # 2. عرض العملاء والمخزون
+    col_inv1, col_inv2 = st.columns(2)
+    with col_inv1:
+        st.write("📦 **المخزون:**")
+        for p in Main.all_products:
+            st.caption(f"{p.name}: {p.stock}")
+    with col_inv2:
+        st.write("👥 **العملاء:**")
+        for c in Main.all_customers:
+            st.caption(f"{c.name}")
 
-# --- الواجهة الرئيسية (معالجة العمليات) ---
+# --- الواجهة الرئيسية (إدخال الطلب وطباعة الفاتورة) ---
 st.title("🛍️ مركز معالجة العمليات")
 
-col1, col2 = st.columns([1, 1])
+c_name = st.selectbox("اختر العميل", [c.name for c in Main.all_customers])
+p_name = st.selectbox("اختر المنتج", [p.name for p in Main.all_products])
+qty = st.number_input("الكمية", min_value=1, step=1)
 
-with col1:
-    st.header("بيانات الطلب")
-    c_name = st.selectbox("اختر العميل", [c.name for c in customers])
-    p_name = st.selectbox("اختر المنتج", [p.name for p in products])
-    qty = st.number_input("الكمية", min_value=1, step=1)
+if st.button("تنفيذ العملية وطباعة الفاتورة"):
+    customer = next(c for c in Main.all_customers if c.name == c_name)
+    product = next(p for p in Main.all_products if p.name == p_name)
     
-    if st.button("اعتماد العملية"):
-        customer = next(c for c in customers if c.name == c_name)
-        product = next(p for p in products if p.name == p_name)
+    subtotal = product.price * qty
+    
+    # استدعاء الدوال من كودك الأصلي
+    result = customer.get_discount(subtotal)
+    product.update_stock(qty)
+    
+    # --- منطقة طباعة الفاتورة ---
+    st.markdown("---")
+    st.subheader("🧾 فاتورة ضريبية معتمدة")
+    
+    # حاوية الفاتورة (تصميم بسيط يشبه الصور السابقة)
+    with st.container():
+        st.info(f"**العميل:** {customer.name} | **المنتج:** {product.name} (x{qty})")
+        st.write(f"**الإجمالي الأساسي:** {subtotal:,.2f} SAR")
         
-        subtotal = product.price * qty
-        
-        # استدعاء القرار من الكود الأساسي
-        final_price = customer.get_discount(subtotal)
-        
-        # تنفيذ تحديث المخزون من الكود الأساسي
-        product.update_stock(qty)
-        
-        with col2:
-            st.header("المخرجات (من النظام)")
-            st.success(f"تمت العملية لـ {customer.name} بنجاح")
+        # حماية ضد الخطأ: نعرض النتيجة سواء كانت رقم أو نص من كودك
+        if result is not None:
+            st.success(f"**الصافي المطلوب (حسب النظام):** {result} SAR")
+        else:
+            st.warning("العملية تمت بنجاح (راجع التيرمنال للتفاصيل)")
             
-            # عرض النتائج كما في التيرمنال
-            st.info(f"المنتج: {product.name} | الكمية: {qty}")
-            st.write(f"الإجمالي قبل الخصم: {subtotal:,.2f} SAR")
-            
-            # التعامل مع مخرجات الكود الأساسي (سواء كانت Return أو Print)
-            if final_price is not None:
-                st.metric("الصافي المطلوب دفعها", f"{final_price:,.2f} SAR")
-            else:
-                # في حال كان الكود يطبع فقط، نظهر رسالة تأكيد
-                st.warning("القرار تم اتخاذه في النظام (الرجاء مراجعة التيرمنال للرقم الدقيق)")
+    st.toast("تم تحديث المخزون وحساب الخصم بنجاح")
