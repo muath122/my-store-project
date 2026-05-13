@@ -9,7 +9,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# تحسين المظهر العام باستخدام CSS لجعلها واجهة "Dashboard" فخمة
+# تصميم الواجهة (Dashboard CSS)
 st.markdown("""
     <style>
     .main { background-color: #f4f7f6; }
@@ -21,7 +21,6 @@ st.markdown("""
         height: 3.5em;
         font-size: 18px;
         font-weight: bold;
-        border: none;
     }
     .invoice-card {
         padding: 25px;
@@ -33,7 +32,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# شريط المهام الجانبي الإداري
+# الشريط الجانبي
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2502/2502127.png", width=80)
     st.header("إدارة النظام")
@@ -43,18 +42,17 @@ with st.sidebar:
 
 # العنوان الرئيسي
 st.title("🖥️ مركز معالجة العمليات والمبيعات")
-st.write("منصة مركزية لإدارة العمليات التجارية وحساب الاستحقاقات المالية بدقة.")
 
-# جلب البيانات من ملف Main.py (مع التأكد من وجودها)
+# جلب البيانات
 try:
     products = Main.all_products
     customers = Main.all_customers
 except AttributeError:
-    st.error("خطأ في ربط البيانات: يرجى التأكد من تعريف القوائم في ملف Main.py")
+    st.error("خطأ: يرجى التأكد من تعريف all_products و all_customers في ملف Main.py")
     st.stop()
 
-# تقسيم الواجهة إلى تبويبات احترافية
-tab_order, tab_stock = st.tabs(["🛒 معالجة طلب جديد", "📊 مراقبة المخزون"])
+# التبويبات
+tab_order, tab_admin = st.tabs(["🛒 معالجة طلب جديد", "📊 السجلات والمخزون"])
 
 with tab_order:
     col_input, col_result = st.columns([1, 1], gap="large")
@@ -63,7 +61,7 @@ with tab_order:
         st.subheader("إدخال بيانات العملية")
         customer_name = st.selectbox("قاعدة بيانات العملاء", [c.name for c in customers], index=None, placeholder="ابحث عن العميل...")
         product_name = st.selectbox("دليل المنتجات المتاحة", [p.name for p in products], index=None, placeholder="ابحث عن المنتج...")
-        quantity = st.number_input("الكمية المطلوبة (وحدات)", min_value=1, step=1)
+        quantity = st.number_input("الكمية المطلوبة", min_value=1, step=1)
         
         submit_btn = st.button("تأكيد العملية وإصدار الفاتورة")
 
@@ -71,46 +69,53 @@ with tab_order:
         st.subheader("معاينة الفاتورة")
         if submit_btn:
             if not customer_name or not product_name:
-                st.warning("يرجى تحديد العميل والمنتج لإتمام العملية.")
+                st.warning("يرجى تحديد العميل والمنتج.")
             else:
                 customer = next(c for c in customers if c.name == customer_name)
                 product = next(p for p in products if p.name == product_name)
                 
                 if quantity > product.stock:
-                    st.error(f"فشل المعالجة: المخزون الحالي ({product.stock}) أقل من الكمية المطلوبة.")
+                    st.error(f"فشل المعالجة: المخزون الحالي ({product.stock}) غير كافٍ.")
                 else:
-                    try:
-                        # الحسابات المالية
-                        subtotal = float(product.price) * quantity
-                        
-                        # الحصول على الخصم (تحويله لرقم لضمان عدم حدوث TypeError)
-                        discount_raw = customer.get_discount(subtotal)
-                        discount = float(discount_raw) if isinstance(discount_raw, (int, float)) else 0.0
-                        
-                        final_amount = subtotal - discount
-                        
-                        # تحديث المخزون
-                        product.update_stock(quantity)
-                        
-                        # عرض الفاتورة الرسمية
-                        st.balloons()
-                        st.markdown(f"""
-                        <div class="invoice-card">
-                            <h4 style="color: #002b5c;">🧾 فاتورة ضريبية معتمدة</h4>
-                            <hr>
-                            <p><b>رقم العملية:</b> {datetime.now().strftime('%Y%H%M%S')}</p>
-                            <p><b>العميل المستفيد:</b> {customer.name}</p>
-                            <p><b>تفاصيل البيان:</b> {product.name} (عدد {quantity})</p>
-                            <p style="font-size: 1.1em;">إجمالي القيمة: <b>{subtotal:,.2f} SAR</b></p>
-                            <p style="color: #d9534f; font-size: 1.1em;">الخصم المطبق: <b>-{discount:,.2f} SAR</b></p>
-                            <h2 style="color: #28a745; margin-top: 10px;">صافي المستحق: {final_amount:,.2f} SAR</h2>
-                            <p style="font-size: 0.8em; color: gray;">تمت المعالجة آلياً بتاريخ {datetime.now().strftime('%H:%M:%S')}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    except Exception as e:
-                        st.error(f"خطأ في العمليات الحسابية: تأكد من أن دالة الخصم تعيد أرقاماً فقط.")
+                    # حساب المالية مع تفعيل منطق الخصم من كودك
+                    subtotal = float(product.price) * quantity
+                    
+                    # استدعاء دالة الخصم والتأكد من أنها تعيد رقماً
+                    discount = customer.get_discount(subtotal)
+                    # معالجة في حال كانت الدالة تعيد السعر بعد الخصم بدلاً من قيمة الخصم نفسه
+                    if discount > subtotal: 
+                        final_amount = float(discount)
+                        discount_value = subtotal - final_amount
+                    else:
+                        discount_value = float(discount)
+                        final_amount = subtotal - discount_value
+                    
+                    product.update_stock(quantity)
+                    
+                    st.balloons()
+                    st.markdown(f"""
+                    <div class="invoice-card">
+                        <h4 style="color: #002b5c;">🧾 فاتورة ضريبية معتمدة</h4>
+                        <hr>
+                        <p><b>رقم العملية:</b> {datetime.now().strftime('%Y%H%M%S')}</p>
+                        <p><b>العميل:</b> {customer.name} (<span style="color: #002b5c;">{type(customer).__name__}</span>)</p>
+                        <p><b>البيان:</b> {product.name} (عدد {quantity})</p>
+                        <p style="font-size: 1.1em;">إجمالي القيمة: <b>{subtotal:,.2f} SAR</b></p>
+                        <p style="color: #d9534f; font-size: 1.1em;">الخصم المطبق: <b>-{discount_value:,.2f} SAR</b></p>
+                        <h2 style="color: #28a745; margin-top: 10px;">صافي المستحق: {final_amount:,.2f} SAR</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-with tab_stock:
-    st.subheader("تقرير حالة المخزون اللحظي")
-    inventory_data = [{"المنتج": p.name, "سعر الوحدة": f"{p.price:,.2f} SAR", "المخزون المتبقي": p.stock} for p in products]
-    st.table(inventory_data)
+with tab_admin:
+    col_inv, col_cust = st.columns(2)
+    
+    with col_inv:
+        st.subheader("📊 مراقبة المخزون")
+        inv_data = [{"المنتج": p.name, "السعر": f"{p.price} SAR", "المخزون": p.stock} for p in products]
+        st.table(inv_data)
+        
+    with col_cust:
+        st.subheader("👥 سجل العملاء")
+        # عرض نوع العميل (Member/VIP/Customer) بناءً على الكلاس الخاص به في كودك
+        cust_data = [{"العميل": c.name, "الفئة": type(c).__name__} for c in customers]
+        st.table(cust_data)
