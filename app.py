@@ -9,7 +9,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# تصميم الواجهة (Dashboard CSS)
+# تصميم الواجهة الاحترافية (Dashboard CSS)
 st.markdown("""
     <style>
     .main { background-color: #f4f7f6; }
@@ -32,7 +32,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# الشريط الجانبي
+# الشريط الجانبي الإداري
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2502/2502127.png", width=80)
     st.header("إدارة النظام")
@@ -40,19 +40,19 @@ with st.sidebar:
     st.divider()
     st.caption("نظام تخطيط موارد المؤسسات (ERP) - الإصدار 2.5")
 
-# العنوان الرئيسي
+# العنوان الرئيسي للنظام
 st.title("🖥️ مركز معالجة العمليات والمبيعات")
 
-# جلب البيانات
+# جلب البيانات من ملف Main.py
 try:
     products = Main.all_products
     customers = Main.all_customers
 except AttributeError:
-    st.error("خطأ: يرجى التأكد من تعريف all_products و all_customers في ملف Main.py")
+    st.error("خطأ: تأكد من تعريف all_products و all_customers كمتغيرات عامة في Main.py")
     st.stop()
 
-# التبويبات
-tab_order, tab_admin = st.tabs(["🛒 معالجة طلب جديد", "📊 السجلات والمخزون"])
+# تقسيم الواجهة لتبويبات
+tab_order, tab_admin = st.tabs(["🛒 معالجة طلب جديد", "📊 سجلات الإدارة والمخزون"])
 
 with tab_order:
     col_input, col_result = st.columns([1, 1], gap="large")
@@ -69,26 +69,31 @@ with tab_order:
         st.subheader("معاينة الفاتورة")
         if submit_btn:
             if not customer_name or not product_name:
-                st.warning("يرجى تحديد العميل والمنتج.")
+                st.warning("يرجى اختيار العميل والمنتج أولاً.")
             else:
                 customer = next(c for c in customers if c.name == customer_name)
                 product = next(p for p in products if p.name == product_name)
                 
                 if quantity > product.stock:
-                    st.error(f"فشل المعالجة: المخزون الحالي ({product.stock}) غير كافٍ.")
+                    st.error(f"فشل المعالجة: الكمية المطلوبة غير متوفرة (المتاح: {product.stock}).")
                 else:
-                    # حساب المالية مع تفعيل منطق الخصم من كودك
+                    # حسابات مالية محمية
                     subtotal = float(product.price) * quantity
                     
-                    # استدعاء دالة الخصم والتأكد من أنها تعيد رقماً
-                    discount = customer.get_discount(subtotal)
-                    # معالجة في حال كانت الدالة تعيد السعر بعد الخصم بدلاً من قيمة الخصم نفسه
-                    if discount > subtotal: 
-                        final_amount = float(discount)
-                        discount_value = subtotal - final_amount
+                    # استلام الخصم وتحويله لرقم بأمان لتجنب TypeError
+                    raw_discount = customer.get_discount(subtotal)
+                    try:
+                        discount_value = float(raw_discount) if raw_discount is not None else 0.0
+                    except (TypeError, ValueError):
+                        discount_value = 0.0
+                    
+                    # منطق الخصم (إذا كانت الدالة ترجع السعر النهائي أو قيمة الخصم)
+                    if discount_value > subtotal:
+                        final_total = discount_value
+                        applied_discount = subtotal - final_total
                     else:
-                        discount_value = float(discount)
-                        final_amount = subtotal - discount_value
+                        applied_discount = discount_value
+                        final_total = subtotal - applied_discount
                     
                     product.update_stock(quantity)
                     
@@ -98,11 +103,11 @@ with tab_order:
                         <h4 style="color: #002b5c;">🧾 فاتورة ضريبية معتمدة</h4>
                         <hr>
                         <p><b>رقم العملية:</b> {datetime.now().strftime('%Y%H%M%S')}</p>
-                        <p><b>العميل:</b> {customer.name} (<span style="color: #002b5c;">{type(customer).__name__}</span>)</p>
+                        <p><b>العميل المستفيد:</b> {customer.name} (<span style="color: #002b5c;">{type(customer).__name__}</span>)</p>
                         <p><b>البيان:</b> {product.name} (عدد {quantity})</p>
                         <p style="font-size: 1.1em;">إجمالي القيمة: <b>{subtotal:,.2f} SAR</b></p>
-                        <p style="color: #d9534f; font-size: 1.1em;">الخصم المطبق: <b>-{discount_value:,.2f} SAR</b></p>
-                        <h2 style="color: #28a745; margin-top: 10px;">صافي المستحق: {final_amount:,.2f} SAR</h2>
+                        <p style="color: #d9534f; font-size: 1.1em;">الخصم المطبق: <b>-{applied_discount:,.2f} SAR</b></p>
+                        <h2 style="color: #28a745; margin-top: 10px;">صافي المستحق: {final_total:,.2f} SAR</h2>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -110,12 +115,12 @@ with tab_admin:
     col_inv, col_cust = st.columns(2)
     
     with col_inv:
-        st.subheader("📊 مراقبة المخزون")
-        inv_data = [{"المنتج": p.name, "السعر": f"{p.price} SAR", "المخزون": p.stock} for p in products]
-        st.table(inv_data)
+        st.subheader("📦 حالة المخزون الحالي")
+        inventory_list = [{"المنتج": p.name, "السعر": f"{p.price:,.2f} SAR", "المخزون": p.stock} for p in products]
+        st.table(inventory_list)
         
     with col_cust:
-        st.subheader("👥 سجل العملاء")
-        # عرض نوع العميل (Member/VIP/Customer) بناءً على الكلاس الخاص به في كودك
-        cust_data = [{"العميل": c.name, "الفئة": type(c).__name__} for c in customers]
-        st.table(cust_data)
+        st.subheader("👥 سجل بيانات العملاء")
+        # عرض العملاء وأنواعهم (Member/VIP/Customer)
+        customer_list = [{"الاسم": c.name, "فئة العميل": type(c).__name__} for c in customers]
+        st.table(customer_list)
