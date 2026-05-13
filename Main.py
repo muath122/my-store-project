@@ -34,7 +34,7 @@ class Customer:
 
     # مثال لما يجب أن تكون عليه الدالة في ملف Main.py
     def get_discount(self, amount):
-        discount = amount * 0.1  # أو النسبة التي حددتها
+        discount = float(amount * 0.1 ) # أو النسبة التي حددتها
         return discount  # تأكد من وجود هذه السطر ليعود الرقم للواجهة
 
 class Member(Customer):
